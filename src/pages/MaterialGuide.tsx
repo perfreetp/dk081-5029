@@ -34,36 +34,41 @@ export default function MaterialGuide() {
   const materialIdsFromUrl = searchParams.get('materialIds')?.split(',').filter(Boolean) || [];
   const isCorrectionMode = materialIdsFromUrl.length > 0;
 
+  const resolvedApp = useMemo(() => {
+    if (appIdFromUrl) {
+      const found = applications.find((a) => a.id === appIdFromUrl);
+      if (found) return found;
+    }
+    return appFromStore;
+  }, [appIdFromUrl, applications, appFromStore]);
+
+  useEffect(() => {
+    if (appIdFromUrl && resolvedApp) {
+      if (appFromStore?.id !== resolvedApp.id) {
+        setCurrentApplication(resolvedApp);
+      }
+    }
+  }, [appIdFromUrl, resolvedApp, appFromStore?.id, setCurrentApplication]);
+
+  const app = resolvedApp;
+
   const [currentStep, setCurrentStep] = useState(isCorrectionMode ? 3 : 1);
-  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(appFromStore?.enterpriseType || null);
+  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(app?.enterpriseType || null);
   const [selectedCategory, setSelectedCategory] = useState('科技服务');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>(appFromStore?.businessScope || []);
-  const [materials, setMaterials] = useState<MaterialItem[]>(appFromStore?.materials || []);
+  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>(app?.businessScope || []);
+  const [materials, setMaterials] = useState<MaterialItem[]>(app?.materials || []);
   const [expandedCategories, setExpandedCategories] = useState<string[]>(isCorrectionMode ? ['基础材料', '身份证明', '经营场所'] : []);
   const [highlightedIds, setHighlightedIds] = useState<string[]>(materialIdsFromUrl);
 
   useEffect(() => {
-    if (appIdFromUrl) {
-      const found = applications.find((a) => a.id === appIdFromUrl);
-      if (found) setCurrentApplication(found);
-    }
-  }, [appIdFromUrl, applications, setCurrentApplication]);
+    if (!app) return;
+    if (!selectedType && app.enterpriseType) setSelectedType(app.enterpriseType);
+    if (app.materials?.length > 0 && materials.length === 0) setMaterials(app.materials);
+    if (selectedScopes.length === 0 && app.businessScope?.length) setSelectedScopes(app.businessScope);
+  }, [app?.id, app?.enterpriseType, app?.materials?.length, app?.businessScope?.length]);
 
-  useEffect(() => {
-    if (appFromStore) {
-      if (!selectedType && appFromStore.enterpriseType) {
-        setSelectedType(appFromStore.enterpriseType);
-      }
-      if (appFromStore.materials && appFromStore.materials.length > 0 && materials.length === 0) {
-        setMaterials(appFromStore.materials);
-      }
-      if (selectedScopes.length === 0 && appFromStore.businessScope?.length) {
-        setSelectedScopes(appFromStore.businessScope);
-      }
-    }
-  }, [appFromStore, selectedType, materials.length, selectedScopes.length]);
-
+  const simulatedAppId = app?.id;
   const simulateUpload = (materialId: string) => {
     setMaterials((prev) =>
       prev.map((m) =>
@@ -72,8 +77,8 @@ export default function MaterialGuide() {
           : m
       )
     );
-    if (appFromStore) {
-      updateMaterial(appFromStore.id, materialId, {
+    if (simulatedAppId) {
+      updateMaterial(simulatedAppId, materialId, {
         status: 'uploaded',
         uploadedFile: `uploaded_${materialId}.pdf`,
         remark: materials.find((m) => m.id === materialId)?.remark === '需补正' ? '已补正上传' : undefined,
@@ -93,17 +98,17 @@ export default function MaterialGuide() {
   };
 
   const handleFinish = () => {
-    if (appFromStore && selectedType) {
-      updateApplication(appFromStore.id, {
+    if (app && selectedType) {
+      updateApplication(app.id, {
         enterpriseType: selectedType,
         businessScope: selectedScopes,
         materials,
       });
     }
-    if (isCorrectionMode && appFromStore && stageFromUrl) {
-      submitCorrection(appFromStore.id, stageFromUrl);
+    if (isCorrectionMode && app && stageFromUrl) {
+      submitCorrection(app.id, stageFromUrl);
       const params = new URLSearchParams();
-      params.set('appId', appFromStore.id);
+      params.set('appId', app.id);
       params.set('stage', stageFromUrl);
       navigate(`/progress?${params.toString()}`);
     } else {
@@ -208,7 +213,7 @@ export default function MaterialGuide() {
         {isCorrectionMode && (
           <div className="text-right">
             <p className="text-xs text-zinc-500">申请编号</p>
-            <p className="text-sm font-mono">{appFromStore?.applicationNo}</p>
+            <p className="text-sm font-mono">{app?.applicationNo}</p>
           </div>
         )}
       </div>

@@ -48,7 +48,7 @@ export default function Application() {
   const appFromStore = useAppStore((s) => s.currentApplication);
   const submitApplication = useAppStore((s) => s.submitApplication);
   const saveDraft = useAppStore((s) => s.saveDraft);
-  const addMessage = useAppStore((s) => s.addMessage);
+  const addMessageOnce = useAppStore((s) => s.addMessageOnce);
   const setCurrentApplicationById = useAppStore((s) => s.setCurrentApplicationById);
 
   const appIdFromUrl = searchParams.get('appId');
@@ -154,8 +154,8 @@ export default function Application() {
     if (!app || !signed) return;
     submitApplication(app.id);
     const now = new Date().toLocaleString('zh-CN', { hour12: false });
-    addMessage({
-      id: `msg_${Date.now()}`,
+    addMessageOnce({
+      id: `msg_process_submit_${app.id}`,
       type: 'process',
       title: `${app.enterpriseName} 申请已提交`,
       content: `您的企业开办申请已成功提交！各部门将并联受理，预计1-3个工作日完成营业执照办理。您可在进度中心查看各环节办理状态。`,
@@ -164,8 +164,8 @@ export default function Application() {
       relatedApplicationId: app.id,
       relatedStage: 'business_license',
     });
-    addMessage({
-      id: `msg_${Date.now() + 1}`,
+    addMessageOnce({
+      id: `msg_reminder_material_${app.id}`,
       type: 'reminder',
       title: '请及时补充完善材料',
       content: '为确保审核顺利通过，请前往材料向导上传住所使用证明、《企业名称自主申报告知书》等材料，完整的材料有助于加快审核速度。',
