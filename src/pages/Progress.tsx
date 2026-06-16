@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   Clock,
@@ -58,11 +59,20 @@ const getStatusIcon = (status: ProcessStatus) => {
 };
 
 export default function Progress() {
+  const navigate = useNavigate();
   const { applications, currentApplication, setCurrentApplication } = useAppStore();
   const [selectedStep, setSelectedStep] = useState<ProcessStep | null>(
     currentApplication?.processSteps.find((s) => s.status !== 'pending' && s.status !== 'completed') ||
       currentApplication?.processSteps[0] || null
   );
+
+  const handleEditMaterial = () => {
+    navigate('/material-guide');
+  };
+
+  const handleDownloadLicense = () => {
+    alert('正在下载电子营业执照...');
+  };
 
   const app = currentApplication;
 
@@ -265,7 +275,7 @@ export default function Progress() {
                   <p className="text-sm text-zinc-900 mb-4">
                     {selectedStep.completeTime || '—'}
                   </p>
-                  <button className="btn-primary">
+                  <button className="btn-primary" onClick={handleDownloadLicense}>
                     <Download className="w-4 h-4" />
                     下载相关证照
                   </button>
@@ -285,7 +295,7 @@ export default function Progress() {
                       )
                     )}
                   </ul>
-                  <button className="btn-outline">
+                  <button className="btn-outline" onClick={handleEditMaterial}>
                     <Edit className="w-4 h-4" />
                     修改材料
                   </button>

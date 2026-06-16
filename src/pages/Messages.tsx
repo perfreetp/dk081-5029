@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   Bell,
@@ -7,6 +8,7 @@ import {
   CheckCheck,
   ArrowRight,
   Paperclip,
+  Edit3,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import type { Message } from '@/types';
@@ -50,6 +52,7 @@ const getTypeLabel = (type: Message['type']) => {
 };
 
 export default function Messages() {
+  const navigate = useNavigate();
   const { messages, markMessageRead, markAllMessagesRead } = useAppStore();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [selectedId, setSelectedId] = useState<string | null>(messages[0]?.id || null);
@@ -59,24 +62,36 @@ export default function Messages() {
       (a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime()
     );
     if (activeTab === 'all') return sorted;
-    return sorted.filter((m) => {
-      if (activeTab === 'process') return m.type === 'process' || m.type === ('reminder' as Message['type']);
-      return m.type === activeTab;
-    });
+    return sorted.filter((m) => m.type === activeTab);
   }, [messages, activeTab]);
 
   const unreadCounts = useMemo(() => {
-    const counts: Record<TabType, number> = { all: 0, process: 0, policy: 0, system: 0 };
+    const counts: Record<TabType, number> = { all: 0, process: 0, reminder: 0, policy: 0, system: 0 };
     messages.forEach((m) => {
       if (!m.isRead) {
         counts.all += 1;
-        if (m.type === 'process' || m.type === ('reminder' as Message['type'])) counts.process += 1;
+        if (m.type === 'process') counts.process += 1;
+        else if (m.type === 'reminder') counts.reminder += 1;
         else if (m.type === 'policy') counts.policy += 1;
         else if (m.type === 'system') counts.system += 1;
       }
     });
     return counts;
   }, [messages]);
+
+  const handleViewApplication = (appId?: string) => {
+    if (appId) {
+      navigate('/progress');
+    }
+  };
+
+  const handleGoToProgress = (stage?: string) => {
+    navigate('/progress');
+  };
+
+  const handleFixMaterial = () => {
+    navigate('/material-guide');
+  };
 
   const selectedMessage = filteredMessages.find((m) => m.id === selectedId) || null;
 
@@ -201,6 +216,8 @@ export default function Messages() {
                       <span className={`badge ${
                         selectedMessage.type === 'process'
                           ? 'badge-info'
+                          : selectedMessage.type === 'reminder'
+                          ? 'badge-warning'
                           : selectedMessage.type === 'policy'
                           ? 'badge-success'
                           : 'badge-default'
@@ -232,14 +249,20 @@ export default function Messages() {
                 )}
 
                 {selectedMessage.relatedApplicationId && (
-                  <div className="mt-6 flex gap-3">
-                    <button className="btn-primary">
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <button className="btn-primary" onClick={() => handleViewApplication(selectedMessage.relatedApplicationId)}>
                       <ArrowRight className="w-4 h-4" />
                       查看相关办件
                     </button>
                     {selectedMessage.relatedStage && (
-                      <button className="btn-secondary">
+                      <button className="btn-secondary" onClick={() => handleGoToProgress(selectedMessage.relatedStage)}>
                         跳转至进度中心
+                      </button>
+                    )}
+                    {selectedMessage.type === 'reminder' && (
+                      <button className="btn-outline" onClick={handleFixMaterial}>
+                        <Edit3 className="w-4 h-4" />
+                        补充材料
                       </button>
                     )}
                   </div>

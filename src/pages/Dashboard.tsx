@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   CreditCard,
@@ -14,16 +15,35 @@ import {
   FileText,
   Users,
   Bell,
+  ArrowRight,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const enterprises = useAppStore((s) => s.enterprises);
   const applications = useAppStore((s) => s.applications);
   const tasks = useAppStore((s) => s.tasks);
   const unreadCount = useAppStore((s) => s.getUnreadMessageCount());
   const pendingTaskCount = useAppStore((s) => s.getPendingTaskCount());
   const toggleTask = useAppStore((s) => s.toggleTask);
+  const setCurrentApplication = useAppStore((s) => s.setCurrentApplication);
+
+  const handleViewApplication = (appId: string) => {
+    const app = applications.find((a) => a.id === appId);
+    if (app) {
+      setCurrentApplication(app);
+    }
+    navigate('/progress');
+  };
+
+  const handleViewEnterprise = (enterpriseId: string) => {
+    navigate('/progress');
+  };
+
+  const handleNewBranch = () => {
+    navigate('/material-guide');
+  };
 
   const stats = [
     { label: '已办企业数', value: enterprises.length, icon: Building2, color: 'text-primary-600', bg: 'bg-primary-50' },
@@ -91,7 +111,7 @@ export default function Dashboard() {
               <h3 className="font-semibold flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary-600" />我的企业
               </h3>
-              <button className="btn-outline text-sm">
+              <button className="btn-outline text-sm" onClick={handleNewBranch}>
                 <GitBranch className="w-4 h-4" />快速设立分支机构
               </button>
             </div>
@@ -108,7 +128,7 @@ export default function Dashboard() {
                           <span className={getStatusBadge(e.status)}>{getStatusText(e.status)}</span>
                         </div>
                       </div>
-                      <button className="text-zinc-400 hover:text-primary-600">
+                      <button className="text-zinc-400 hover:text-primary-600" onClick={() => handleViewEnterprise(e.id)}>
                         <ChevronRight className="w-5 h-5" />
                       </button>
                     </div>
@@ -160,7 +180,7 @@ export default function Dashboard() {
                         <span className={getAppStatusBadge(a.status)}>{getAppStatusText(a.status)}</span>
                       </td>
                       <td className="py-3 px-2">
-                        <button className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1">
+                        <button className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1" onClick={() => handleViewApplication(a.id)}>
                           <FileCheck className="w-3 h-3" />查看
                         </button>
                       </td>
@@ -232,7 +252,7 @@ export default function Dashboard() {
                 <p className="text-xs text-primary-600">一键复用已有企业信息</p>
               </div>
             </div>
-            <button className="btn-primary w-full mt-2">
+            <button className="btn-primary w-full mt-2" onClick={handleNewBranch}>
               <GitBranch className="w-4 h-4" />立即设立
             </button>
           </div>

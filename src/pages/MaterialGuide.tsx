@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, Search, Plus, X, Upload, Download, FileText,
   CheckCircle2, AlertCircle, XCircle, ChevronDown, ChevronRight, Edit, Image,
 } from 'lucide-react';
 import { enterpriseTypes, businessScopeCategories, defaultMaterials } from '@/data/mockData';
+import { useAppStore } from '@/store';
 import type { EnterpriseType, BusinessScopeItem, MaterialItem } from '@/types';
 
 const steps = [
@@ -16,13 +18,55 @@ const steps = [
 const categoryList = ['科技服务', '商贸零售', '商务服务', '餐饮住宿', '文化教育', '建筑工程'];
 
 export default function MaterialGuide() {
+  const navigate = useNavigate();
+  const app = useAppStore((s) => s.currentApplication);
+  const updateMaterialStatus = useAppStore((s) => s.updateMaterialStatus);
+  const updateApplication = useAppStore((s) => s.updateApplication);
+
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(null);
+  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(app?.enterpriseType || null);
   const [selectedCategory, setSelectedCategory] = useState('科技服务');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>([]);
-  const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>(app?.businessScope || []);
+  const [materials, setMaterials] = useState<MaterialItem[]>(app?.materials || []);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!selectedType && app?.enterpriseType) {
+      setSelectedType(app.enterpriseType);
+    }
+    if (app?.materials && app.materials.length > 0 && materials.length === 0) {
+      setMaterials(app.materials);
+    }
+  }, [app, selectedType, materials.length]);
+
+  const simulateUpload = (materialId: string) => {
+    setMaterials((prev) =>
+      prev.map((m) => (m.id === materialId ? { ...m, status: 'uploaded' as const, uploadedFile: `uploaded_${materialId}.pdf` } : m))
+    );
+    if (app) {
+      updateMaterialStatus(app.id, materialId, 'uploaded');
+    }
+  };
+
+  const handleTemplateDownload = (name: string) => {
+    alert(`正在下载模板：${name}`);
+  };
+
+  const handleOnlineEdit = () => {
+    alert('正在打开公司章程在线编辑器...');
+  };
+
+  const handleFinish = () => {
+    if (app && selectedType) {
+      updateApplication(app.id, {
+        enterpriseType: selectedType,
+        businessScope: selectedScopes,
+        materials,
+      });
+    }
+    navigate('/application');
+  };
 
   const filteredScopes = useMemo(() => {
     const all = Object.values(businessScopeCategories).flat();
@@ -60,20 +104,28 @@ export default function MaterialGuide() {
   }, [materials]);
 
   const getStatusBadge = (status: MaterialItem['status']) => {
-    if (status === 'verified') return <span className="badge-success"><CheckCircle2 size={12} />已上传</span>;
-    if (status === 'uploaded') return <span className="badge-warning"><AlertCircle size={12} />待上传</span>;
+    if (status === 'verified') return <span className="badge-success"><CheckCircle2 size={12} />已通过</span>;
+    if (status === 'uploaded') return <span className="badge-info"><CheckCircle2 size={12} />已上传</span>;
     return <span className="badge-danger"><XCircle size={12} />缺失</span>;
   };
 
-  const UploadBox = ({ title, hint, onClick }: { title: string; hint: string; onClick?: () => void }) => (
-    <div onClick={onClick} className="border-2 border-dashed border-zinc-300 rounded-xl p-6 text-center hover:border-primary-400 hover:bg-primary-50/30 transition-all cursor-pointer">
-      <div className="w-12 h-12 rounded-lg bg-zinc-100 flex items-center justify-center mx-auto mb-2">
-        <Upload size={24} className="text-zinc-500" />
+  const UploadBox = ({ title, hint, materialId, onUpload }: { title: string; hint: string; materialId?: string; onUpload?: () => void }) => {
+    const handleClick = () => {
+      if (materialId) {
+        simulateUpload(materialId);
+      }
+      if (onUpload) onUpload();
+    };
+    return (
+      <div onClick={handleClick} className="border-2 border-dashed border-zinc-300 rounded-xl p-6 text-center hover:border-primary-400 hover:bg-primary-50/30 transition-all cursor-pointer">
+        <div className="w-12 h-12 rounded-lg bg-zinc-100 flex items-center justify-center mx-auto mb-2">
+          <Upload size={24} className="text-zinc-500" />
+        </div>
+        <p className="text-sm font-medium text-zinc-700">{title}</p>
+        <p className="text-xs text-zinc-400 mt-1">{hint}</p>
       </div>
-      <p className="text-sm font-medium text-zinc-700">{title}</p>
-      <p className="text-xs text-zinc-400 mt-1">{hint}</p>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-5xl mx-auto p-6">
@@ -220,8 +272,14 @@ export default function MaterialGuide() {
                               </div>
                             </div>
                             <div className="flex gap-2 flex-shrink-0">
-                              <button className="btn-outline !px-3 !py-1.5 text-xs"><Upload size={14} />上传</button>
-                              {m.templateAvailable && <button className="btn-secondary !px-3 !py-1.5 text-xs"><Download size={14} />模板</button>}
+                              <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => simulateUpload(m.id)}>
+                                <Upload size={14} />{m.status === 'missing' ? '上传' : m.status === 'uploaded' ? '重新上传' : '已通过'}
+                              </button>
+                              {m.templateAvailable && (
+                                <button className="btn-secondary !px-3 !py-1.5 text-xs" onClick={() => handleTemplateDownload(m.templateFile || m.name)}>
+                                  <Download size={14} />模板
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -239,15 +297,15 @@ export default function MaterialGuide() {
             <div className="card p-5">
               <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2"><Image size={18} className="text-primary-600" />身份证明上传</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UploadBox title="身份证正面" hint="点击或拖拽上传人像面" />
-                <UploadBox title="身份证反面" hint="点击或拖拽上传国徽面" />
+                <UploadBox title="身份证正面" hint="点击或拖拽上传人像面" materialId="id_front" />
+                <UploadBox title="身份证反面" hint="点击或拖拽上传国徽面" materialId="id_back" />
               </div>
             </div>
             <div className="card p-5">
               <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2"><FileText size={18} className="text-primary-600" />租赁材料上传</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UploadBox title="房屋产权证明" hint="房产证或不动产权证" />
-                <UploadBox title="租赁合同" hint="房屋租赁协议复印件" />
+                <UploadBox title="房屋产权证明" hint="房产证或不动产权证" materialId="property_cert" />
+                <UploadBox title="租赁合同" hint="房屋租赁协议复印件" materialId="lease_contract" />
               </div>
             </div>
             <div className="card p-5">
@@ -260,7 +318,7 @@ export default function MaterialGuide() {
                     <p className="text-xs text-zinc-500">DOCX · 约需 5-10 分钟填写</p>
                   </div>
                 </div>
-                <button className="btn-primary"><Edit size={16} />在线编辑</button>
+                <button className="btn-primary" onClick={handleOnlineEdit}><Edit size={16} />在线编辑</button>
               </div>
             </div>
           </div>
@@ -269,9 +327,18 @@ export default function MaterialGuide() {
 
       <div className="flex justify-between">
         <button onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)} disabled={currentStep === 1} className="btn-secondary">上一步</button>
-        <button onClick={() => currentStep < 4 && setCurrentStep(currentStep + 1)}
-          disabled={currentStep === 4 || (currentStep === 1 && !selectedType)} className="btn-primary">
-          {currentStep === 4 ? '完成' : '下一步'}
+        <button
+          onClick={() => {
+            if (currentStep < 4) {
+              setCurrentStep(currentStep + 1);
+            } else {
+              handleFinish();
+            }
+          }}
+          disabled={currentStep === 1 && !selectedType}
+          className="btn-primary"
+        >
+          {currentStep === 4 ? '前往并联申报' : '下一步'}
         </button>
       </div>
     </div>

@@ -26,6 +26,7 @@ interface AppState {
   getUnreadMessageCount: () => number;
   getPendingTaskCount: () => number;
   updateProcessStep: (appId: string, stage: ProcessStage, updates: Partial<EnterpriseApplication['processSteps'][0]>) => void;
+  updateMaterialStatus: (appId: string, materialId: string, status: 'missing' | 'uploaded' | 'verified') => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -118,6 +119,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         currentApplication:
           state.currentApplication?.id === appId
             ? { ...state.currentApplication, processSteps: updateSteps(state.currentApplication.processSteps) }
+            : state.currentApplication,
+      };
+    }),
+
+  updateMaterialStatus: (appId, materialId, status) =>
+    set((state) => {
+      const updateMaterials = (materials: EnterpriseApplication['materials']) =>
+        materials.map((m) => (m.id === materialId ? { ...m, status } : m));
+
+      return {
+        applications: state.applications.map((a) =>
+          a.id === appId ? { ...a, materials: updateMaterials(a.materials) } : a
+        ),
+        currentApplication:
+          state.currentApplication?.id === appId
+            ? { ...state.currentApplication, materials: updateMaterials(state.currentApplication.materials) }
             : state.currentApplication,
       };
     }),

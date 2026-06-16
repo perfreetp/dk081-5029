@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   User,
@@ -39,8 +40,11 @@ const parallelServices: { key: ProcessStage; label: string; icon: typeof CreditC
 ];
 
 export default function Application() {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const app = useAppStore((s) => s.currentApplication);
+  const submitApplication = useAppStore((s) => s.submitApplication);
+  const addMessage = useAppStore((s) => s.addMessage);
 
   const [altNames, setAltNames] = useState<string[]>(app?.alternativeNames || ['']);
   const [capital, setCapital] = useState(app?.registeredCapital || 100);
@@ -81,6 +85,31 @@ export default function Application() {
 
   const prev = () => currentStep > 0 && setCurrentStep(currentStep - 1);
   const next = () => currentStep < steps.length - 1 && setCurrentStep(currentStep + 1);
+
+  const handleSubmit = () => {
+    if (!app || !signed) return;
+    submitApplication(app.id);
+    const now = new Date().toLocaleString('zh-CN', { hour12: false });
+    addMessage({
+      id: `msg_${Date.now()}`,
+      type: 'process',
+      title: `${app.enterpriseName} 申请已提交`,
+      content: `您的企业开办申请已成功提交！各部门将并联受理，预计1-3个工作日完成营业执照办理。您可在进度中心查看各环节办理状态。`,
+      isRead: false,
+      createTime: now,
+      relatedApplicationId: app.id,
+    });
+    addMessage({
+      id: `msg_${Date.now() + 1}`,
+      type: 'reminder',
+      title: '请及时补充完善材料',
+      content: '为确保审核顺利通过，请前往材料向导上传住所使用证明、《企业名称自主申报告知书》等材料，完整的材料有助于加快审核速度。',
+      isRead: false,
+      createTime: now,
+      relatedApplicationId: app.id,
+    });
+    navigate('/progress');
+  };
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
@@ -268,7 +297,7 @@ export default function Application() {
                   <p className="text-sm text-zinc-500 mt-1">本人确认上述信息真实有效，已完成所有签字人员的电子签名认证</p>
                 </div>
               </label>
-              <button className="btn-primary w-full py-3 text-base" disabled={!signed}><FileCheck className="w-5 h-5" />一键提交申请</button>
+              <button className="btn-primary w-full py-3 text-base" disabled={!signed} onClick={handleSubmit}><FileCheck className="w-5 h-5" />一键提交申请</button>
             </div>
           )}
         </div>

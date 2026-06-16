@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, FileText, ClipboardList, LayoutDashboard, MessageSquare,
   BookOpen, HelpCircle, CheckCircle2, Clock, ArrowRight, Users,
@@ -6,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { enterpriseTypes } from '@/data/mockData';
-import type { ProcessStatus } from '@/types';
+import type { ProcessStatus, EnterpriseType } from '@/types';
 
 const processSteps = [
   { icon: Building2, title: '选择企业类型', desc: '根据业务需求选择合适的企业类型' },
@@ -54,10 +55,34 @@ function getStatusText(status: ProcessStatus) {
 }
 
 export default function Home() {
-  const { currentApplication } = useAppStore();
+  const navigate = useNavigate();
+  const { currentApplication, setCurrentApplication, updateApplication } = useAppStore();
   const displaySteps = currentApplication?.processSteps.slice(0, 5) || [];
   const completedCount = displaySteps.filter((s) => s.status === 'completed').length;
   const progressPercent = displaySteps.length > 0 ? (completedCount / displaySteps.length) * 100 : 0;
+
+  const handleStartApplication = () => {
+    navigate('/material-guide');
+  };
+
+  const handleQuickEntry = (title: string) => {
+    const routeMap: Record<string, string> = {
+      '材料向导': '/material-guide',
+      '并联申报': '/application',
+      '进度中心': '/progress',
+      '消息中心': '/messages',
+      '政策法规': '/messages',
+      '常见问题': '/dashboard',
+    };
+    navigate(routeMap[title] || '/');
+  };
+
+  const handleSelectEnterpriseType = (type: EnterpriseType) => {
+    if (currentApplication) {
+      updateApplication(currentApplication.id, { enterpriseType: type });
+    }
+    navigate('/material-guide');
+  };
 
   return (
     <div className="min-h-screen animate-fade-in">
@@ -73,7 +98,7 @@ export default function Home() {
               一次填报，六事联办，最快1个工作日办结
             </p>
             <div className="flex flex-wrap gap-4">
-              <button className="btn-primary !bg-white !text-primary-600 !hover:bg-primary-50 px-6 py-3 text-base">
+              <button className="btn-primary !bg-white !text-primary-600 !hover:bg-primary-50 px-6 py-3 text-base" onClick={handleStartApplication}>
                 立即开始申报 <ArrowRight className="w-5 h-5" />
               </button>
               <button className="btn-secondary !bg-transparent !border-white/30 !text-white !hover:bg-white/10 px-6 py-3 text-base">
@@ -139,7 +164,7 @@ export default function Home() {
             <div className="text-center py-12 text-zinc-500">
               <FileCheck className="w-12 h-12 mx-auto mb-3 text-zinc-300" />
               <p>暂无办理中的申请</p>
-              <button className="btn-primary mt-4">开始新申报 <ArrowRight className="w-4 h-4" /></button>
+              <button className="btn-primary mt-4" onClick={handleStartApplication}>开始新申报 <ArrowRight className="w-4 h-4" /></button>
             </div>
           )}
         </div>
@@ -180,7 +205,7 @@ export default function Home() {
           {quickEntries.map((entry, idx) => {
             const Icon = entry.icon;
             return (
-              <button key={idx} className="card-hover p-5 text-center group animate-slide-up" style={{ animationDelay: `${idx * 50}ms` }}>
+              <button key={idx} className="card-hover p-5 text-center group animate-slide-up" style={{ animationDelay: `${idx * 50}ms` }} onClick={() => handleQuickEntry(entry.title)}>
                 <div className={`w-12 h-12 rounded-xl ${entry.color} flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
                   <Icon className="w-6 h-6" />
                 </div>
@@ -201,7 +226,7 @@ export default function Home() {
           {enterpriseTypes.map((type, idx) => {
             const Icon = enterpriseIcons[type.id] || Building2;
             return (
-              <div key={type.id} className="card-hover p-6 cursor-pointer animate-slide-up" style={{ animationDelay: `${idx * 100}ms` }}>
+              <div key={type.id} className="card-hover p-6 cursor-pointer animate-slide-up" style={{ animationDelay: `${idx * 100}ms` }} onClick={() => handleSelectEnterpriseType(type.id)}>
                 <div className="w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center mb-4">
                   <Icon className="w-6 h-6" />
                 </div>
@@ -212,7 +237,7 @@ export default function Home() {
                   <div className="flex justify-between"><span className="text-zinc-500">股东人数</span><span className="text-zinc-700 font-medium">{type.shareholderCount}</span></div>
                   <div className="flex justify-between"><span className="text-zinc-500">责任形式</span><span className="text-zinc-700 font-medium">{type.liability}</span></div>
                 </div>
-                <button className="btn-primary w-full mt-5 text-sm">选择此类型 <ArrowRight className="w-4 h-4" /></button>
+                <button className="btn-primary w-full mt-5 text-sm" onClick={(e) => { e.stopPropagation(); handleSelectEnterpriseType(type.id); }}>选择此类型 <ArrowRight className="w-4 h-4" /></button>
               </div>
             );
           })}
@@ -254,7 +279,7 @@ export default function Home() {
             全程电子化办理，数据加密传输，多部门信息共享，让您足不出户完成企业开办全流程
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <button className="btn-primary px-6 py-3">立即开始申报 <ArrowRight className="w-5 h-5" /></button>
+            <button className="btn-primary px-6 py-3" onClick={handleStartApplication}>立即开始申报 <ArrowRight className="w-5 h-5" /></button>
             <button className="btn-secondary px-6 py-3"><Users className="w-5 h-5" />联系客服</button>
           </div>
         </div>
