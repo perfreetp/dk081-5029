@@ -7,6 +7,7 @@ import type {
   UserTask,
   MaterialItem,
   ProcessStep,
+  TimelineNode,
 } from '@/types';
 
 export const enterpriseTypes: EnterpriseTypeInfo[] = [
@@ -95,7 +96,7 @@ export const businessScopeCategories: Record<string, BusinessScopeItem[]> = {
 
 export const defaultMaterials: Record<string, MaterialItem[]> = {
   limited: [
-    { id: 'm1', name: '公司法定代表人签署的《公司登记（备案）申请书》', category: '基础材料', required: true, status: 'missing', templateAvailable: true, templateFile: '公司登记申请书模板.docx' },
+    { id: 'm1', name: '公司法定代表人签署的《公司登记（备案）申请书', category: '基础材料', required: true, status: 'missing', templateAvailable: true, templateFile: '公司登记申请书模板.docx' },
     { id: 'm2', name: '全体股东签署的公司章程', category: '基础材料', required: true, status: 'missing', templateAvailable: true, templateFile: '有限责任公司章程模板.docx' },
     { id: 'm3', name: '股东的主体资格证明或者自然人身份证件复印件', category: '身份证明', required: true, status: 'missing', templateAvailable: false, remark: '股东为企业的，提交营业执照副本复印件；股东为自然人的，提交身份证复印件' },
     { id: 'm4', name: '法定代表人、董事、监事和经理的任职文件及身份证件复印件', category: '身份证明', required: true, status: 'missing', templateAvailable: true, templateFile: '任职文件模板.docx' },
@@ -127,15 +128,79 @@ export const defaultMaterials: Record<string, MaterialItem[]> = {
   ],
 };
 
+const makeTimeline = (nodes: Partial<TimelineNode>[]): TimelineNode[] =>
+  nodes.map((n, i) => ({
+    id: `tl_${Date.now()}_${i}`,
+    type: n.type || 'accept',
+    title: n.title || '',
+    description: n.description || '',
+    time: n.time || new Date().toISOString(),
+    operator: n.operator,
+  }));
+
 export const defaultProcessSteps: ProcessStep[] = [
-  { stage: 'name_approval', name: '名称自主申报', status: 'completed', acceptTime: '2026-06-15 09:30:00', completeTime: '2026-06-15 10:15:00', department: '市场监督管理局' },
-  { stage: 'business_license', name: '营业执照办理', status: 'reviewing', acceptTime: '2026-06-16 09:00:00', expectedTime: '2026-06-18 17:00:00', department: '市场监督管理局' },
-  { stage: 'seal_engraving', name: '公章刻制备案', status: 'pending', department: '公安局' },
-  { stage: 'tax_registration', name: '税务登记', status: 'pending', department: '税务局' },
-  { stage: 'social_insurance', name: '社保开户', status: 'pending', department: '人力资源和社会保障局' },
-  { stage: 'housing_fund', name: '公积金开户', status: 'pending', department: '住房公积金管理中心' },
-  { stage: 'bank_appointment', name: '银行开户预约', status: 'pending', department: '中国工商银行（网点）' },
+  {
+    stage: 'name_approval', name: '名称自主申报', status: 'completed', acceptTime: '2026-06-15 09:30:00', completeTime: '2026-06-15 10:15:00', department: '市场监督管理局',
+    timeline: makeTimeline([
+      { type: 'submit', title: '提交名称申请', description: '申请人提交名称自主申报申请', time: '2026-06-15 09:00:00', operator: '张明' },
+      { type: 'accept', title: '受理通过', description: '材料齐全，予以受理', time: '2026-06-15 09:30:00', operator: '市场监督管理局' },
+      { type: 'review', title: '审核通过', description: '名称符合规范，无重名或近似', time: '2026-06-15 10:00:00', operator: '审核员：王建国' },
+      { type: 'complete', title: '名称核准完成', description: '名称保留期至2026年8月15日', time: '2026-06-15 10:15:00', operator: '市场监督管理局' },
+    ]),
+  },
+  {
+    stage: 'business_license', name: '营业执照办理', status: 'reviewing', acceptTime: '2026-06-16 09:00:00', expectedTime: '2026-06-18 17:00:00', department: '市场监督管理局',
+    timeline: makeTimeline([
+      { type: 'submit', title: '提交设立申请', description: '申请人提交企业设立登记申请', time: '2026-06-16 08:30:00', operator: '张明' },
+      { type: 'accept', title: '受理通过', description: '申请材料齐全，符合法定形式，予以受理', time: '2026-06-16 09:00:00', operator: '市场监督管理局' },
+      { type: 'review', title: '审核中', description: '正在对申请材料进行实质审查', time: '2026-06-16 14:00:00', operator: '审核员：李淑芬' },
+    ]),
+  },
+  { stage: 'seal_engraving', name: '公章刻制备案', status: 'pending', department: '公安局', timeline: [] },
+  { stage: 'tax_registration', name: '税务登记', status: 'pending', department: '税务局', timeline: [] },
+  { stage: 'social_insurance', name: '社保开户', status: 'pending', department: '人力资源和社会保障局', timeline: [] },
+  { stage: 'housing_fund', name: '公积金开户', status: 'pending', department: '住房公积金管理中心', timeline: [] },
+  { stage: 'bank_appointment', name: '银行开户预约', status: 'pending', department: '中国工商银行（网点）', timeline: [] },
 ];
+
+export const returnedProcessSteps: ProcessStep[] = [
+  {
+    stage: 'name_approval', name: '名称自主申报', status: 'completed', acceptTime: '2026-06-10 09:30:00', completeTime: '2026-06-10 10:15:00', department: '市场监督管理局',
+    timeline: makeTimeline([
+      { type: 'submit', title: '提交名称申请', description: '申请人提交名称自主申报申请', time: '2026-06-10 09:00:00', operator: '王芳' },
+      { type: 'accept', title: '受理通过', description: '材料齐全，予以受理', time: '2026-06-10 09:30:00', operator: '市场监督管理局' },
+      { type: 'complete', title: '名称核准完成', description: '名称保留期至2026年8月10日', time: '2026-06-10 10:15:00', operator: '市场监督管理局' },
+    ]),
+  },
+  {
+    stage: 'business_license', name: '营业执照办理', status: 'returned', acceptTime: '2026-06-12 09:00:00', department: '市场监督管理局',
+    returnReason: '申请材料不齐全，需补充以下材料：1. 住所使用证明（房产证复印件需加盖产权人签章；2. 公司章程需全体股东签字',
+    correctItems: ['m5', 'm2'],
+    timeline: makeTimeline([
+      { type: 'submit', title: '提交设立申请', description: '申请人提交企业设立登记申请', time: '2026-06-12 08:30:00', operator: '王芳' },
+      { type: 'accept', title: '受理通过', description: '材料基本齐全，进入审核', time: '2026-06-12 09:00:00', operator: '市场监督管理局' },
+      { type: 'review', title: '审核中', description: '对申请材料进行审查', time: '2026-06-12 14:00:00', operator: '审核员：赵晓红' },
+      { type: 'return', title: '材料需补正', description: '材料不齐全，需要补正后重新提交', time: '2026-06-13 10:00:00', operator: '市场监督管理局' },
+    ]),
+  },
+  { stage: 'seal_engraving', name: '公章刻制备案', status: 'pending', department: '公安局', timeline: [] },
+  { stage: 'tax_registration', name: '税务登记', status: 'pending', department: '税务局', timeline: [] },
+  { stage: 'social_insurance', name: '社保开户', status: 'pending', department: '人力资源和社会保障局', timeline: [] },
+  { stage: 'housing_fund', name: '公积金开户', status: 'pending', department: '住房公积金管理中心', timeline: [] },
+  { stage: 'bank_appointment', name: '银行开户预约', status: 'pending', department: '中国工商银行（网点）', timeline: [] },
+];
+
+const baseLegalPerson = {
+  idType: '居民身份证', idNumber: '110101199001011234', phone: '13800138000', email: 'zhangming@example.com', role: 'legal_representative' as const,
+};
+
+const baseShareholder = {
+  idType: '居民身份证', idNumber: '110101199001011234', phone: '13800138000', email: 'zhangming@example.com', role: 'shareholder' as const,
+};
+
+const basePremises = {
+  province: '北京市', city: '北京市', district: '朝阳区', address: '建国路88号SOHO现代城A座1001室', propertyType: 'rented' as const, propertyOwner: '北京SOHO物业管理有限公司', propertyCertType: '不动产权证书', propertyCertNo: '京（2020）朝不动产权第0012345号',
+};
 
 export const mockApplications: EnterpriseApplication[] = [
   {
@@ -151,69 +216,80 @@ export const mockApplications: EnterpriseApplication[] = [
       { code: 'I6540', name: '信息系统集成服务', category: '科技服务', isLicensed: false },
     ],
     businessTerm: '长期',
-    legalRepresentative: {
-      id: 'p001',
-      name: '张明',
-      idType: '居民身份证',
-      idNumber: '110101199001011234',
-      phone: '13800138000',
-      email: 'zhangming@example.com',
-      role: 'legal_representative',
-    },
+    legalRepresentative: { id: 'p001', name: '张明', ...baseLegalPerson },
     shareholders: [
-      {
-        id: 'p001',
-        name: '张明',
-        idType: '居民身份证',
-        idNumber: '110101199001011234',
-        phone: '13800138000',
-        email: 'zhangming@example.com',
-        role: 'shareholder',
-        shareRatio: 60,
-        subscribedCapital: 60,
-      },
-      {
-        id: 'p002',
-        name: '李华',
-        idType: '居民身份证',
-        idNumber: '110101199202022345',
-        phone: '13800138001',
-        email: 'lihua@example.com',
-        role: 'shareholder',
-        shareRatio: 40,
-        subscribedCapital: 40,
-      },
+      { id: 'p001', name: '张明', shareRatio: 60, subscribedCapital: 60, ...baseShareholder },
+      { id: 'p002', name: '李华', shareRatio: 40, subscribedCapital: 40, idType: '居民身份证', idNumber: '110101199202022345', phone: '13800138001', email: 'lihua@example.com', role: 'shareholder' },
     ],
-    supervisors: [
-      {
-        id: 'p002',
-        name: '李华',
-        idType: '居民身份证',
-        idNumber: '110101199202022345',
-        phone: '13800138001',
-        email: 'lihua@example.com',
-        role: 'supervisor',
-      },
-    ],
+    supervisors: [{ id: 'p002', name: '李华', idType: '居民身份证', idNumber: '110101199202022345', phone: '13800138001', email: 'lihua@example.com', role: 'supervisor' }],
     directors: [],
-    premises: {
-      province: '北京市',
-      city: '北京市',
-      district: '朝阳区',
-      address: '建国路88号SOHO现代城A座1001室',
-      propertyType: 'rented',
-      propertyOwner: '北京SOHO物业管理有限公司',
-      propertyCertType: '不动产权证书',
-      propertyCertNo: '京（2020）朝不动产权第0012345号',
-      leaseTermStart: '2026-06-01',
-      leaseTermEnd: '2029-05-31',
-    },
+    premises: { ...basePremises, leaseTermStart: '2026-06-01', leaseTermEnd: '2029-05-31' },
     selectedServices: ['name_approval', 'business_license', 'seal_engraving', 'tax_registration', 'social_insurance', 'housing_fund', 'bank_appointment'],
     materials: defaultMaterials.limited.map((m, i) => ({ ...m, status: i < 2 ? 'verified' : i < 4 ? 'uploaded' : 'missing' })),
     processSteps: defaultProcessSteps,
     status: 'reviewing',
     createTime: '2026-06-15 09:00:00',
     submitTime: '2026-06-16 09:00:00',
+    isDraft: false,
+  },
+  {
+    id: 'app002',
+    applicationNo: 'QY2026061300002',
+    enterpriseName: '云帆商贸（北京）有限公司',
+    alternativeNames: ['云帆商贸'],
+    enterpriseType: 'limited',
+    registeredCapital: 50,
+    businessScope: [
+      { code: 'F5211', name: '百货零售', category: '商贸零售', isLicensed: false },
+      { code: 'F5212', name: '超级市场零售', category: '商贸零售', isLicensed: false },
+    ],
+    businessTerm: '20年',
+    legalRepresentative: { id: 'p003', name: '王芳', idType: '居民身份证', idNumber: '110101198803033456', phone: '13900139000', email: 'wangfang@example.com', role: 'legal_representative' },
+    shareholders: [{ id: 'p003', name: '王芳', shareRatio: 100, subscribedCapital: 50, idType: '居民身份证', idNumber: '110101198803033456', phone: '13900139000', email: 'wangfang@example.com', role: 'shareholder' }],
+    supervisors: [],
+    directors: [],
+    premises: { province: '北京市', city: '北京市', district: '海淀区', address: '中关村大街1号5层508室', propertyType: 'rented', propertyOwner: '北京中关村创业服务有限公司', propertyCertType: '不动产权证书', propertyCertNo: '京（2019）海不动产权第0067890号', leaseTermStart: '2026-05-01', leaseTermEnd: '2028-04-30' },
+    selectedServices: ['name_approval', 'business_license', 'seal_engraving', 'tax_registration', 'social_insurance', 'housing_fund'],
+    materials: defaultMaterials.limited.map((m) =>
+      m.id === 'm5' || m.id === 'm2'
+        ? { ...m, remark: '需补正', status: 'missing' as const }
+        : { ...m, status: m.status === 'verified' ? 'uploaded' : m.status },
+    ),
+    processSteps: returnedProcessSteps,
+    status: 'returned',
+    createTime: '2026-06-10 09:00:00',
+    submitTime: '2026-06-12 09:00:00',
+    isDraft: false,
+  },
+  {
+    id: 'app003',
+    applicationNo: 'QY2026061700003',
+    enterpriseName: '绿源餐饮（北京）有限公司',
+    alternativeNames: ['绿源餐饮'],
+    enterpriseType: 'limited',
+    registeredCapital: 30,
+    businessScope: [
+      { code: 'H6210', name: '正餐服务', category: '餐饮住宿', isLicensed: true, licenseRequired: '《食品经营许可证》' },
+    ],
+    businessTerm: '长期',
+    legalRepresentative: { id: 'p004', name: '刘强', idType: '居民身份证', idNumber: '110101199505054567', phone: '13700137000', email: 'liuqiang@example.com', role: 'legal_representative' },
+    shareholders: [{ id: 'p004', name: '刘强', shareRatio: 70, subscribedCapital: 21, idType: '居民身份证', idNumber: '110101199505054567', phone: '13700137000', email: 'liuqiang@example.com', role: 'shareholder' }],
+    supervisors: [],
+    directors: [],
+    premises: { province: '北京市', city: '北京市', district: '西城区', address: '西单北大街109号3层', propertyType: 'rented', propertyOwner: '北京西单商场管理有限公司', propertyCertType: '不动产权证书', propertyCertNo: '京（2021）西不动产权第0098765号', leaseTermStart: '2026-07-01', leaseTermEnd: '2031-06-30' },
+    selectedServices: ['name_approval', 'business_license', 'seal_engraving', 'tax_registration'],
+    materials: defaultMaterials.limited.map((m) => ({ ...m })),
+    processSteps: [
+      { stage: 'name_approval', name: '名称自主申报', status: 'pending', department: '市场监督管理局', timeline: [] },
+      { stage: 'business_license', name: '营业执照办理', status: 'pending', department: '市场监督管理局', timeline: [] },
+      { stage: 'seal_engraving', name: '公章刻制备案', status: 'pending', department: '公安局', timeline: [] },
+      { stage: 'tax_registration', name: '税务登记', status: 'pending', department: '税务局', timeline: [] },
+    ],
+    status: 'pending',
+    createTime: '2026-06-17 10:00:00',
+    isDraft: true,
+    lastSaveTime: '2026-06-17 15:30:00',
+    currentStep: 1,
   },
 ];
 
@@ -241,11 +317,12 @@ export const mockMessages: Message[] = [
   {
     id: 'msg003',
     type: 'reminder',
-    title: '材料上传提醒',
-    content: '您的申请材料中还有以下材料未上传：住所使用证明、《企业名称自主申报告知书》。请尽快补齐材料，以便顺利进入审核环节。',
-    isRead: true,
-    createTime: '2026-06-15 14:00:00',
-    relatedApplicationId: 'app001',
+    title: '材料补正通知',
+    content: '您的企业「云帆商贸（北京）有限公司」设立登记申请材料需要补正：1. 住所使用证明（房产证复印件需加盖产权人签章；2. 公司章程需全体股东签字。请在5个工作日内完成补正。',
+    isRead: false,
+    createTime: '2026-06-13 10:30:00',
+    relatedApplicationId: 'app002',
+    relatedStage: 'business_license',
   },
   {
     id: 'msg004',

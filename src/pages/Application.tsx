@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Building2,
   User,
@@ -17,6 +17,9 @@ import {
   Landmark,
   Shield,
   Banknote,
+  Save,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 import type { Shareholder, BusinessScopeItem, ProcessStage, BusinessPremises } from '@/types';
@@ -41,11 +44,25 @@ const parallelServices: { key: ProcessStage; label: string; icon: typeof CreditC
 
 export default function Application() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const app = useAppStore((s) => s.currentApplication);
+  const [searchParams] = useSearchParams();
+  const appFromStore = useAppStore((s) => s.currentApplication);
   const submitApplication = useAppStore((s) => s.submitApplication);
+  const saveDraft = useAppStore((s) => s.saveDraft);
   const addMessage = useAppStore((s) => s.addMessage);
+  const setCurrentApplicationById = useAppStore((s) => s.setCurrentApplicationById);
 
+  const appIdFromUrl = searchParams.get('appId');
+
+  useEffect(() => {
+    if (appIdFromUrl) {
+      setCurrentApplicationById(appIdFromUrl);
+    }
+  }, [appIdFromUrl, setCurrentApplicationById]);
+
+  const app = appFromStore;
+
+  const initialStep = app?.currentStep ?? 0;
+  const [currentStep, setCurrentStep] = useState(Math.min(initialStep, steps.length - 1));
   const [altNames, setAltNames] = useState<string[]>(app?.alternativeNames || ['']);
   const [capital, setCapital] = useState(app?.registeredCapital || 100);
   const [term, setTerm] = useState(app?.businessTerm || '长期');
@@ -53,6 +70,7 @@ export default function Application() {
   const [legalName, setLegalName] = useState(app?.legalRepresentative.name || '');
   const [legalId, setLegalId] = useState(app?.legalRepresentative.idNumber || '');
   const [legalPhone, setLegalPhone] = useState(app?.legalRepresentative.phone || '');
+  const [legalEmail, setLegalEmail] = useState(app?.legalRepresentative.email || '');
 
   const [shareholders, setShareholders] = useState<Shareholder[]>(app?.shareholders || []);
   const addShareholder = () => {
@@ -64,12 +82,18 @@ export default function Application() {
   const removeShareholder = (id: string) => setShareholders(shareholders.filter((s) => s.id !== id));
 
   const [supervisorName, setSupervisorName] = useState(app?.supervisors[0]?.name || '');
+  const [supervisorId, setSupervisorId] = useState(app?.supervisors[0]?.idNumber || '');
 
   const [province, setProvince] = useState(app?.premises.province || '');
   const [city, setCity] = useState(app?.premises.city || '');
   const [district, setDistrict] = useState(app?.premises.district || '');
   const [address, setAddress] = useState(app?.premises.address || '');
   const [propertyType, setPropertyType] = useState(app?.premises.propertyType || 'rented');
+  const [propertyOwner, setPropertyOwner] = useState(app?.premises.propertyOwner || '');
+  const [propertyCertType, setPropertyCertType] = useState(app?.premises.propertyCertType || '');
+  const [propertyCertNo, setPropertyCertNo] = useState(app?.premises.propertyCertNo || '');
+  const [leaseTermStart, setLeaseTermStart] = useState(app?.premises.leaseTermStart || '');
+  const [leaseTermEnd, setLeaseTermEnd] = useState(app?.premises.leaseTermEnd || '');
 
   const [scopeList, setScopeList] = useState<BusinessScopeItem[]>(app?.businessScope || []);
   const removeScope = (code: string) => setScopeList(scopeList.filter((s) => s.code !== code));
@@ -82,9 +106,49 @@ export default function Application() {
   };
 
   const [signed, setSigned] = useState(false);
+  const [saveTip, setSaveTip] = useState<string | null>(null);
 
   const prev = () => currentStep > 0 && setCurrentStep(currentStep - 1);
   const next = () => currentStep < steps.length - 1 && setCurrentStep(currentStep + 1);
+
+  const collectDraftUpdates = () => ({
+    alternativeNames: altNames.filter(Boolean),
+    registeredCapital: capital,
+    businessTerm: term,
+    legalRepresentative: {
+      ...(app?.legalRepresentative || { id: 'legal_default', idType: '居民身份证', role: 'legal_representative' as const }),
+      name: legalName,
+      idNumber: legalId,
+      phone: legalPhone,
+      email: legalEmail,
+    },
+    shareholders,
+    supervisors: supervisorName ? [{
+      id: app?.supervisors[0]?.id || 'super_default',
+      name: supervisorName,
+      idType: '居民身份证',
+      idNumber: supervisorId,
+      phone: '',
+      email: '',
+      role: 'supervisor' as const,
+    }] : [],
+    premises: {
+      province, city, district, address,
+      propertyType: propertyType as BusinessPremises['propertyType'],
+      propertyOwner, propertyCertType, propertyCertNo,
+      leaseTermStart, leaseTermEnd,
+    },
+    businessScope: scopeList,
+    selectedServices,
+    currentStep,
+  });
+
+  const handleSaveDraft = () => {
+    if (!app) return;
+    saveDraft(app.id, collectDraftUpdates());
+    setSaveTip('草稿已保存');
+    setTimeout(() => setSaveTip(null), 2000);
+  };
 
   const handleSubmit = () => {
     if (!app || !signed) return;
@@ -98,6 +162,7 @@ export default function Application() {
       isRead: false,
       createTime: now,
       relatedApplicationId: app.id,
+      relatedStage: 'business_license',
     });
     addMessage({
       id: `msg_${Date.now() + 1}`,
@@ -107,14 +172,32 @@ export default function Application() {
       isRead: false,
       createTime: now,
       relatedApplicationId: app.id,
+      relatedStage: 'business_license',
     });
     navigate('/progress');
   };
 
+  useEffect(() => {
+    if (!app) return;
+    const handler = setTimeout(() => {
+      saveDraft(app.id, collectDraftUpdates());
+    }, 3000);
+    return () => clearTimeout(handler);
+  }, [currentStep, legalName, legalId, legalPhone, capital, term, province, city, district, address, propertyType, supervisorName, selectedServices.length, shareholders.length, scopeList.length]);
+
   return (
     <div className="flex gap-6 h-[calc(100vh-8rem)]">
       <div className="w-64 shrink-0 card p-6">
-        <h3 className="text-lg font-semibold mb-6">办理步骤</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">办理步骤</h3>
+          {app?.isDraft && <span className="badge-warning text-xs">草稿</span>}
+        </div>
+        {app?.isDraft && app.lastSaveTime && (
+          <div className="mb-4 p-2.5 rounded-lg bg-warning-50 border border-warning-200 text-xs text-warning-700 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            上次保存：{new Date(app.lastSaveTime).toLocaleString('zh-CN', { hour12: false })}
+          </div>
+        )}
         <div className="relative space-y-6">
           {steps.map((step, idx) => (
             <div key={step.key} className="relative flex items-start gap-3">
@@ -140,11 +223,30 @@ export default function Application() {
             </div>
           ))}
         </div>
+        <div className="mt-8 pt-4 border-t border-zinc-100">
+          <button className="btn-outline w-full text-sm" onClick={handleSaveDraft}>
+            <Save className="w-4 h-4" />
+            保存草稿
+          </button>
+          {saveTip && (
+            <p className="mt-2 text-xs text-success-600 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />{saveTip}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col">
         <div className="flex-1 card p-6 overflow-y-auto">
-          <h2 className="text-xl font-semibold mb-6">{steps[currentStep].label}</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold">{steps[currentStep].label}</h2>
+            {app && (
+              <div className="text-right">
+                <p className="text-xs text-zinc-500">{app.enterpriseName}</p>
+                <p className="text-xs font-mono text-zinc-400">{app.applicationNo}</p>
+              </div>
+            )}
+          </div>
 
           {currentStep === 0 && (
             <div className="space-y-5 max-w-2xl">
@@ -178,7 +280,8 @@ export default function Application() {
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="label">姓名</label><input className="input" value={legalName} onChange={(e) => setLegalName(e.target.value)} /></div>
                   <div><label className="label">身份证号</label><input className="input" value={legalId} onChange={(e) => setLegalId(e.target.value)} /></div>
-                  <div className="col-span-2"><label className="label">手机号码</label><input className="input" value={legalPhone} onChange={(e) => setLegalPhone(e.target.value)} /></div>
+                  <div><label className="label">手机号码</label><input className="input" value={legalPhone} onChange={(e) => setLegalPhone(e.target.value)} /></div>
+                  <div><label className="label">电子邮箱</label><input className="input" value={legalEmail} onChange={(e) => setLegalEmail(e.target.value)} /></div>
                 </div>
               </div>
               <div>
@@ -200,7 +303,10 @@ export default function Application() {
               </div>
               <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200">
                 <h4 className="font-medium mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-primary-600" />监事信息</h4>
-                <div><label className="label">监事姓名</label><input className="input" value={supervisorName} onChange={(e) => setSupervisorName(e.target.value)} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div><label className="label">监事姓名</label><input className="input" value={supervisorName} onChange={(e) => setSupervisorName(e.target.value)} /></div>
+                  <div><label className="label">身份证号</label><input className="input" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} /></div>
+                </div>
               </div>
             </div>
           )}
@@ -222,13 +328,16 @@ export default function Application() {
                 ))}
               </div></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">产权证明类型</label><input className="input" placeholder="不动产权证书" /></div>
-                <div><label className="label">产权证明编号</label><input className="input" placeholder="京（202x）朝不动产权第xxxxxx号" /></div>
+                <div><label className="label">产权人</label><input className="input" value={propertyOwner} onChange={(e) => setPropertyOwner(e.target.value)} /></div>
+                <div><label className="label">产权证明类型</label><input className="input" value={propertyCertType} onChange={(e) => setPropertyCertType(e.target.value)} placeholder="不动产权证书" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">产权证明编号</label><input className="input" value={propertyCertNo} onChange={(e) => setPropertyCertNo(e.target.value)} placeholder="京（202x）朝不动产权第xxxxxx号" /></div>
               </div>
               {propertyType === 'rented' && (
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="label">租赁起始日</label><input type="date" className="input" /></div>
-                  <div><label className="label">租赁到期日</label><input type="date" className="input" /></div>
+                  <div><label className="label">租赁起始日</label><input type="date" className="input" value={leaseTermStart} onChange={(e) => setLeaseTermStart(e.target.value)} /></div>
+                  <div><label className="label">租赁到期日</label><input type="date" className="input" value={leaseTermEnd} onChange={(e) => setLeaseTermEnd(e.target.value)} /></div>
                 </div>
               )}
             </div>
@@ -238,10 +347,10 @@ export default function Application() {
             <div className="max-w-3xl">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-medium">已选经营范围</h4>
-                <button className="btn-outline text-sm"><Plus className="w-4 h-4" />添加经营范围</button>
+                <button className="btn-outline text-sm" onClick={() => navigate('/material-guide')}><Plus className="w-4 h-4" />前往材料向导添加</button>
               </div>
               {scopeList.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500 border border-dashed rounded-lg">暂无经营范围，请点击上方按钮添加</div>
+                <div className="text-center py-12 text-zinc-500 border border-dashed rounded-lg">暂无经营范围，请点击上方按钮前往材料向导添加</div>
               ) : (
                 <div className="space-y-2">
                   {scopeList.map((item) => (
@@ -297,7 +406,12 @@ export default function Application() {
                   <p className="text-sm text-zinc-500 mt-1">本人确认上述信息真实有效，已完成所有签字人员的电子签名认证</p>
                 </div>
               </label>
-              <button className="btn-primary w-full py-3 text-base" disabled={!signed} onClick={handleSubmit}><FileCheck className="w-5 h-5" />一键提交申请</button>
+              <div className="flex gap-3">
+                <button className="btn-secondary flex-1" onClick={handleSaveDraft}>
+                  <Save className="w-4 h-4" />先保存草稿
+                </button>
+                <button className="btn-primary flex-[2] py-3 text-base" disabled={!signed} onClick={handleSubmit}><FileCheck className="w-5 h-5" />一键提交申请</button>
+              </div>
             </div>
           )}
         </div>

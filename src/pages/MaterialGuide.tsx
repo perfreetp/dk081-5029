@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Building2, Search, Plus, X, Upload, Download, FileText,
   CheckCircle2, AlertCircle, XCircle, ChevronDown, ChevronRight, Edit, Image,
+  RefreshCw, ArrowLeft,
 } from 'lucide-react';
 import { enterpriseTypes, businessScopeCategories, defaultMaterials } from '@/data/mockData';
 import { useAppStore } from '@/store';
-import type { EnterpriseType, BusinessScopeItem, MaterialItem } from '@/types';
+import type { EnterpriseType, BusinessScopeItem, MaterialItem, ProcessStage } from '@/types';
 
 const steps = [
   { id: 1, name: '选择企业类型' },
@@ -19,33 +20,64 @@ const categoryList = ['科技服务', '商贸零售', '商务服务', '餐饮住
 
 export default function MaterialGuide() {
   const navigate = useNavigate();
-  const app = useAppStore((s) => s.currentApplication);
+  const [searchParams] = useSearchParams();
+  const appFromStore = useAppStore((s) => s.currentApplication);
   const updateMaterialStatus = useAppStore((s) => s.updateMaterialStatus);
+  const updateMaterial = useAppStore((s) => s.updateMaterial);
   const updateApplication = useAppStore((s) => s.updateApplication);
+  const submitCorrection = useAppStore((s) => s.submitCorrection);
+  const setCurrentApplication = useAppStore((s) => s.setCurrentApplication);
+  const applications = useAppStore((s) => s.applications);
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(app?.enterpriseType || null);
+  const appIdFromUrl = searchParams.get('appId');
+  const stageFromUrl = searchParams.get('stage') as ProcessStage | null;
+  const materialIdsFromUrl = searchParams.get('materialIds')?.split(',').filter(Boolean) || [];
+  const isCorrectionMode = materialIdsFromUrl.length > 0;
+
+  const [currentStep, setCurrentStep] = useState(isCorrectionMode ? 3 : 1);
+  const [selectedType, setSelectedType] = useState<EnterpriseType | null>(appFromStore?.enterpriseType || null);
   const [selectedCategory, setSelectedCategory] = useState('科技服务');
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>(app?.businessScope || []);
-  const [materials, setMaterials] = useState<MaterialItem[]>(app?.materials || []);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [selectedScopes, setSelectedScopes] = useState<BusinessScopeItem[]>(appFromStore?.businessScope || []);
+  const [materials, setMaterials] = useState<MaterialItem[]>(appFromStore?.materials || []);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(isCorrectionMode ? ['基础材料', '身份证明', '经营场所'] : []);
+  const [highlightedIds, setHighlightedIds] = useState<string[]>(materialIdsFromUrl);
 
   useEffect(() => {
-    if (!selectedType && app?.enterpriseType) {
-      setSelectedType(app.enterpriseType);
+    if (appIdFromUrl) {
+      const found = applications.find((a) => a.id === appIdFromUrl);
+      if (found) setCurrentApplication(found);
     }
-    if (app?.materials && app.materials.length > 0 && materials.length === 0) {
-      setMaterials(app.materials);
+  }, [appIdFromUrl, applications, setCurrentApplication]);
+
+  useEffect(() => {
+    if (appFromStore) {
+      if (!selectedType && appFromStore.enterpriseType) {
+        setSelectedType(appFromStore.enterpriseType);
+      }
+      if (appFromStore.materials && appFromStore.materials.length > 0 && materials.length === 0) {
+        setMaterials(appFromStore.materials);
+      }
+      if (selectedScopes.length === 0 && appFromStore.businessScope?.length) {
+        setSelectedScopes(appFromStore.businessScope);
+      }
     }
-  }, [app, selectedType, materials.length]);
+  }, [appFromStore, selectedType, materials.length, selectedScopes.length]);
 
   const simulateUpload = (materialId: string) => {
     setMaterials((prev) =>
-      prev.map((m) => (m.id === materialId ? { ...m, status: 'uploaded' as const, uploadedFile: `uploaded_${materialId}.pdf` } : m))
+      prev.map((m) =>
+        m.id === materialId
+          ? { ...m, status: 'uploaded' as const, uploadedFile: `uploaded_${materialId}.pdf`, remark: m.remark === '需补正' ? '已补正上传' : m.remark }
+          : m
+      )
     );
-    if (app) {
-      updateMaterialStatus(app.id, materialId, 'uploaded');
+    if (appFromStore) {
+      updateMaterial(appFromStore.id, materialId, {
+        status: 'uploaded',
+        uploadedFile: `uploaded_${materialId}.pdf`,
+        remark: materials.find((m) => m.id === materialId)?.remark === '需补正' ? '已补正上传' : undefined,
+      });
     }
   };
 
@@ -53,19 +85,30 @@ export default function MaterialGuide() {
     alert(`正在下载模板：${name}`);
   };
 
-  const handleOnlineEdit = () => {
-    alert('正在打开公司章程在线编辑器...');
+  const handleOnlineEdit = (materialId?: string) => {
+    alert('正在打开公司章程在线编辑器...编辑完成后自动上传');
+    if (materialId) {
+      setTimeout(() => simulateUpload(materialId), 500);
+    }
   };
 
   const handleFinish = () => {
-    if (app && selectedType) {
-      updateApplication(app.id, {
+    if (appFromStore && selectedType) {
+      updateApplication(appFromStore.id, {
         enterpriseType: selectedType,
         businessScope: selectedScopes,
         materials,
       });
     }
-    navigate('/application');
+    if (isCorrectionMode && appFromStore && stageFromUrl) {
+      submitCorrection(appFromStore.id, stageFromUrl);
+      const params = new URLSearchParams();
+      params.set('appId', appFromStore.id);
+      params.set('stage', stageFromUrl);
+      navigate(`/progress?${params.toString()}`);
+    } else {
+      navigate('/application');
+    }
   };
 
   const filteredScopes = useMemo(() => {
@@ -109,30 +152,89 @@ export default function MaterialGuide() {
     return <span className="badge-danger"><XCircle size={12} />缺失</span>;
   };
 
-  const UploadBox = ({ title, hint, materialId, onUpload }: { title: string; hint: string; materialId?: string; onUpload?: () => void }) => {
-    const handleClick = () => {
-      if (materialId) {
-        simulateUpload(materialId);
-      }
-      if (onUpload) onUpload();
-    };
+  const isHighlighted = (id: string) => highlightedIds.includes(id);
+
+  const UploadBox = ({ title, hint, materialId }: { title: string; hint: string; materialId?: string }) => {
+    const mat = materialId ? materials.find((m) => m.id === materialId) : undefined;
+    const uploaded = mat?.status === 'uploaded';
+    const highlighted = materialId ? isHighlighted(materialId) : false;
     return (
-      <div onClick={handleClick} className="border-2 border-dashed border-zinc-300 rounded-xl p-6 text-center hover:border-primary-400 hover:bg-primary-50/30 transition-all cursor-pointer">
-        <div className="w-12 h-12 rounded-lg bg-zinc-100 flex items-center justify-center mx-auto mb-2">
-          <Upload size={24} className="text-zinc-500" />
+      <div
+        onClick={() => materialId && simulateUpload(materialId)}
+        className={`border-2 border-dashed rounded-xl p-6 text-center hover:border-primary-400 hover:bg-primary-50/30 transition-all cursor-pointer ${
+          uploaded ? 'border-success-400 bg-success-50/30' : highlighted ? 'border-danger-400 bg-danger-50/30' : 'border-zinc-300'
+        }`}
+      >
+        <div className={`w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-2 ${
+          uploaded ? 'bg-success-100' : highlighted ? 'bg-danger-100' : 'bg-zinc-100'
+        }`}>
+          {uploaded ? <CheckCircle2 size={24} className="text-success-600" /> :
+            highlighted ? <AlertCircle size={24} className="text-danger-600" /> :
+            <Upload size={24} className="text-zinc-500" />}
         </div>
-        <p className="text-sm font-medium text-zinc-700">{title}</p>
+        <p className={`text-sm font-medium ${uploaded ? 'text-success-700' : highlighted ? 'text-danger-700' : 'text-zinc-700'}`}>
+          {uploaded ? `${title}（已上传）` : title}
+        </p>
         <p className="text-xs text-zinc-400 mt-1">{hint}</p>
       </div>
     );
   };
 
+  const onlineMaterialMap: Record<string, { idFront?: string; idBack?: string; property?: string; lease?: string; charter?: string }> = {
+    limited: { idFront: 'm3', idBack: 'm3', property: 'm5', lease: 'm5', charter: 'm2' },
+    individual: { idFront: 'i2', idBack: 'i2', property: 'i3', lease: 'i3', charter: undefined },
+    partnership: { idFront: 'p2', idBack: 'p2', property: 'p5', lease: 'p5', charter: 'p3' },
+    sole: { idFront: 's2', idBack: 's2', property: 's3', lease: 's3', charter: 's4' },
+  };
+  const mapping = selectedType ? onlineMaterialMap[selectedType] : onlineMaterialMap.limited;
+
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-2">材料向导</h1>
-        <p className="text-zinc-500 text-sm">按步骤完成企业开办所需材料准备</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            {isCorrectionMode && (
+              <button onClick={() => navigate(-1)} className="text-zinc-500 hover:text-primary-600">
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <h1 className="text-2xl font-bold text-zinc-900">材料向导</h1>
+            {isCorrectionMode && <span className="badge-danger">补正模式</span>}
+          </div>
+          <p className="text-zinc-500 text-sm">
+            {isCorrectionMode ? '请按要求补正以下材料后重新提交' : '按步骤完成企业开办所需材料准备'}
+          </p>
+        </div>
+        {isCorrectionMode && (
+          <div className="text-right">
+            <p className="text-xs text-zinc-500">申请编号</p>
+            <p className="text-sm font-mono">{appFromStore?.applicationNo}</p>
+          </div>
+        )}
       </div>
+
+      {isCorrectionMode && highlightedIds.length > 0 && (
+        <div className="card p-4 mb-6 border-danger-200 bg-danger-50/50">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="text-danger-600" size={18} />
+            <span className="font-semibold text-danger-700">需补正材料</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {highlightedIds.map((mid) => {
+              const mat = materials.find((m) => m.id === mid);
+              const done = mat?.status === 'uploaded' || mat?.status === 'verified';
+              return (
+                <span key={mid} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm border ${
+                  done ? 'bg-success-50 text-success-700 border-success-200' : 'bg-danger-100 text-danger-700 border-danger-300'
+                }`}>
+                  {done ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                  {mat?.name || mid}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center mb-6 overflow-x-auto pb-2">
         {steps.map((step, idx) => (
@@ -246,44 +348,60 @@ export default function MaterialGuide() {
             </div>
             {Object.entries(groupedMaterials).map(([category, items]) => {
               const expanded = expandedCategories.includes(category);
+              const hasHighlighted = items.some((it) => isHighlighted(it.id));
               return (
-                <div key={category} className="card overflow-hidden">
+                <div key={category} className={`card overflow-hidden ${hasHighlighted ? 'ring-2 ring-danger-200' : ''}`}>
                   <button onClick={() => toggleCategory(category)} className="w-full flex items-center justify-between p-4 hover:bg-zinc-50 transition-colors">
                     <div className="flex items-center gap-2">
                       {expanded ? <ChevronDown size={18} className="text-zinc-500" /> : <ChevronRight size={18} className="text-zinc-500" />}
                       <span className="font-medium text-zinc-900">{category}</span>
                       <span className="badge-info">{items.length}项</span>
+                      {hasHighlighted && <span className="badge-danger">含需补正</span>}
                     </div>
                   </button>
                   {expanded && (
                     <div className="border-t border-zinc-100 divide-y divide-zinc-100">
-                      {items.map((m) => (
-                        <div key={m.id} className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-start gap-3 flex-1">
-                              <FileText size={18} className="text-zinc-400 mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-zinc-900 text-sm">{m.name}</span>
-                                  {m.required && <span className="badge-danger">必填</span>}
-                                  {getStatusBadge(m.status)}
+                      {items.map((m) => {
+                        const highlighted = isHighlighted(m.id);
+                        return (
+                          <div key={m.id} className={`p-4 ${highlighted ? 'bg-danger-50/50' : ''}`}>
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <FileText size={18} className={`mt-0.5 flex-shrink-0 ${highlighted ? 'text-danger-500' : 'text-zinc-400'}`} />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-zinc-900 text-sm">{m.name}</span>
+                                    {m.required && <span className="badge-danger">必填</span>}
+                                    {getStatusBadge(m.status)}
+                                    {highlighted && <span className="badge-danger">需补正</span>}
+                                  </div>
+                                  {m.remark && <p className={`text-xs mt-1 ${m.remark === '需补正' ? 'text-danger-600' : 'text-zinc-500'}`}>{m.remark}</p>}
                                 </div>
-                                {m.remark && <p className="text-xs text-zinc-500 mt-1">{m.remark}</p>}
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0">
+                                <button
+                                  className={`!px-3 !py-1.5 text-xs ${m.status === 'verified' ? 'btn-secondary' : highlighted ? 'btn-primary' : 'btn-outline'}`}
+                                  onClick={() => simulateUpload(m.id)}
+                                >
+                                  {m.status === 'missing' ? <><Upload size={14} />上传</> :
+                                    m.status === 'uploaded' ? <><RefreshCw size={14} />重新上传</> :
+                                    <><CheckCircle2 size={14} />已通过</>}
+                                </button>
+                                {m.templateAvailable && (
+                                  <button className="btn-secondary !px-3 !py-1.5 text-xs" onClick={() => handleTemplateDownload(m.templateFile || m.name)}>
+                                    <Download size={14} />模板
+                                  </button>
+                                )}
+                                {m.id === mapping.charter && (
+                                  <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => handleOnlineEdit(m.id)}>
+                                    <Edit size={14} />编辑
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <div className="flex gap-2 flex-shrink-0">
-                              <button className="btn-outline !px-3 !py-1.5 text-xs" onClick={() => simulateUpload(m.id)}>
-                                <Upload size={14} />{m.status === 'missing' ? '上传' : m.status === 'uploaded' ? '重新上传' : '已通过'}
-                              </button>
-                              {m.templateAvailable && (
-                                <button className="btn-secondary !px-3 !py-1.5 text-xs" onClick={() => handleTemplateDownload(m.templateFile || m.name)}>
-                                  <Download size={14} />模板
-                                </button>
-                              )}
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -295,38 +413,58 @@ export default function MaterialGuide() {
         {currentStep === 4 && (
           <div className="space-y-4">
             <div className="card p-5">
-              <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2"><Image size={18} className="text-primary-600" />身份证明上传</h3>
+              <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <Image size={18} className="text-primary-600" />身份证明上传
+                {mapping.idFront && isHighlighted(mapping.idFront) && <span className="badge-danger">需补正</span>}
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UploadBox title="身份证正面" hint="点击或拖拽上传人像面" materialId="id_front" />
-                <UploadBox title="身份证反面" hint="点击或拖拽上传国徽面" materialId="id_back" />
+                <UploadBox title="身份证正面" hint="点击或拖拽上传人像面" materialId={mapping.idFront} />
+                <UploadBox title="身份证反面" hint="点击或拖拽上传国徽面" materialId={mapping.idBack} />
               </div>
             </div>
             <div className="card p-5">
-              <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2"><FileText size={18} className="text-primary-600" />租赁材料上传</h3>
+              <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <FileText size={18} className="text-primary-600" />租赁材料上传
+                {(mapping.property && isHighlighted(mapping.property)) && <span className="badge-danger">需补正</span>}
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UploadBox title="房屋产权证明" hint="房产证或不动产权证" materialId="property_cert" />
-                <UploadBox title="租赁合同" hint="房屋租赁协议复印件" materialId="lease_contract" />
+                <UploadBox title="房屋产权证明" hint="房产证或不动产权证" materialId={mapping.property} />
+                <UploadBox title="租赁合同" hint="房屋租赁协议复印件" materialId={mapping.lease} />
               </div>
             </div>
-            <div className="card p-5">
-              <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2"><Edit size={18} className="text-primary-600" />公司章程模板在线编辑</h3>
-              <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600"><FileText size={20} /></div>
-                  <div>
-                    <p className="font-medium text-zinc-900 text-sm">有限责任公司章程模板</p>
-                    <p className="text-xs text-zinc-500">DOCX · 约需 5-10 分钟填写</p>
+            {mapping.charter && (
+              <div className="card p-5">
+                <h3 className="font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                  <Edit size={18} className="text-primary-600" />公司章程模板在线编辑
+                  {isHighlighted(mapping.charter) && <span className="badge-danger">需补正</span>}
+                </h3>
+                <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600"><FileText size={20} /></div>
+                    <div>
+                      <p className="font-medium text-zinc-900 text-sm">有限责任公司章程模板</p>
+                      <p className="text-xs text-zinc-500">DOCX · 约需 5-10 分钟填写</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn-secondary" onClick={() => handleTemplateDownload('公司章程模板.docx')}>
+                      <Download size={14} />下载模板
+                    </button>
+                    <button className="btn-primary" onClick={() => handleOnlineEdit(mapping.charter)}>
+                      <Edit size={16} />在线编辑
+                    </button>
                   </div>
                 </div>
-                <button className="btn-primary" onClick={handleOnlineEdit}><Edit size={16} />在线编辑</button>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
 
       <div className="flex justify-between">
-        <button onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)} disabled={currentStep === 1} className="btn-secondary">上一步</button>
+        <button onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)} disabled={currentStep === 1} className="btn-secondary">
+          {isCorrectionMode && currentStep === 3 ? '返回进度中心' : '上一步'}
+        </button>
         <button
           onClick={() => {
             if (currentStep < 4) {
@@ -338,7 +476,9 @@ export default function MaterialGuide() {
           disabled={currentStep === 1 && !selectedType}
           className="btn-primary"
         >
-          {currentStep === 4 ? '前往并联申报' : '下一步'}
+          {currentStep === 4
+            ? isCorrectionMode ? '提交补正材料' : '前往并联申报'
+            : currentStep === 3 && isCorrectionMode ? '前往在线整理' : '下一步'}
         </button>
       </div>
     </div>

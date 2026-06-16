@@ -79,18 +79,39 @@ export default function Messages() {
     return counts;
   }, [messages]);
 
-  const handleViewApplication = (appId?: string) => {
-    if (appId) {
-      navigate('/progress');
+  const setCurrentApplicationById = useAppStore((s) => s.setCurrentApplicationById);
+  const applications = useAppStore((s) => s.applications);
+
+  const handleViewApplication = (appId?: string, stage?: string) => {
+    if (!appId) return;
+    setCurrentApplicationById(appId);
+    const params = new URLSearchParams();
+    params.set('appId', appId);
+    if (stage) params.set('stage', stage);
+    navigate(`/progress?${params.toString()}`);
+  };
+
+  const handleGoToProgress = (appId?: string, stage?: string) => {
+    if (appId) setCurrentApplicationById(appId);
+    const params = new URLSearchParams();
+    if (appId) params.set('appId', appId);
+    if (stage) params.set('stage', stage);
+    navigate(`/progress?${params.toString()}`);
+  };
+
+  const handleFixMaterial = (appId?: string, stage?: string) => {
+    if (!appId) {
+      navigate('/material-guide');
+      return;
     }
-  };
-
-  const handleGoToProgress = (stage?: string) => {
-    navigate('/progress');
-  };
-
-  const handleFixMaterial = () => {
-    navigate('/material-guide');
+    setCurrentApplicationById(appId);
+    const app = applications.find((a) => a.id === appId);
+    const correctItems = stage ? app?.processSteps.find((s) => s.stage === stage)?.correctItems : undefined;
+    const params = new URLSearchParams();
+    params.set('appId', appId);
+    if (stage) params.set('stage', stage);
+    if (correctItems && correctItems.length > 0) params.set('materialIds', correctItems.join(','));
+    navigate(`/material-guide?${params.toString()}`);
   };
 
   const selectedMessage = filteredMessages.find((m) => m.id === selectedId) || null;
@@ -186,7 +207,17 @@ export default function Messages() {
                           <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
                             {msg.content}
                           </p>
-                          <p className="text-xs text-zinc-400 mt-2">{msg.createTime}</p>
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <span className="text-xs text-zinc-400">{msg.createTime}</span>
+                            {msg.relatedApplicationId && (() => {
+                              const relatedApp = applications.find((a) => a.id === msg.relatedApplicationId);
+                              return relatedApp ? (
+                                <span className="text-[11px] text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
+                                  {relatedApp.enterpriseName}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </li>
@@ -250,17 +281,17 @@ export default function Messages() {
 
                 {selectedMessage.relatedApplicationId && (
                   <div className="mt-6 flex flex-wrap gap-3">
-                    <button className="btn-primary" onClick={() => handleViewApplication(selectedMessage.relatedApplicationId)}>
+                    <button className="btn-primary" onClick={() => handleViewApplication(selectedMessage.relatedApplicationId, selectedMessage.relatedStage)}>
                       <ArrowRight className="w-4 h-4" />
                       查看相关办件
                     </button>
                     {selectedMessage.relatedStage && (
-                      <button className="btn-secondary" onClick={() => handleGoToProgress(selectedMessage.relatedStage)}>
+                      <button className="btn-secondary" onClick={() => handleGoToProgress(selectedMessage.relatedApplicationId, selectedMessage.relatedStage)}>
                         跳转至进度中心
                       </button>
                     )}
                     {selectedMessage.type === 'reminder' && (
-                      <button className="btn-outline" onClick={handleFixMaterial}>
+                      <button className="btn-outline" onClick={() => handleFixMaterial(selectedMessage.relatedApplicationId, selectedMessage.relatedStage)}>
                         <Edit3 className="w-4 h-4" />
                         补充材料
                       </button>

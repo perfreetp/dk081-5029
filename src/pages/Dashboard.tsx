@@ -16,6 +16,8 @@ import {
   Users,
   Bell,
   ArrowRight,
+  Edit3,
+  FileWarning,
 } from 'lucide-react';
 import { useAppStore } from '@/store';
 
@@ -36,6 +38,15 @@ export default function Dashboard() {
     }
     navigate('/progress');
   };
+
+  const handleContinueDraft = (appId: string) => {
+    const app = applications.find((a) => a.id === appId);
+    if (app) setCurrentApplication(app);
+    navigate(`/application?appId=${appId}`);
+  };
+
+  const draftApps = applications.filter((a) => a.isDraft);
+  const submittedApps = applications.filter((a) => !a.isDraft);
 
   const handleViewEnterprise = (enterpriseId: string) => {
     navigate('/progress');
@@ -67,7 +78,8 @@ export default function Dashboard() {
     return map[s] || 'badge-default';
   };
 
-  const getAppStatusText = (s: string) => {
+  const getAppStatusText = (s: string, isDraft?: boolean) => {
+    if (isDraft) return '草稿';
     const label: Record<string, string> = { pending: '待提交', accepted: '已受理', reviewing: '审核中', returned: '已退回', completed: '已完成' };
     return label[s] || s;
   };
@@ -155,9 +167,47 @@ export default function Dashboard() {
             )}
           </div>
 
+          {draftApps.length > 0 && (
+            <div className="card p-5 border-warning-200 bg-warning-50/30">
+              <h3 className="font-semibold flex items-center gap-2 mb-4">
+                <Edit3 className="w-5 h-5 text-warning-600" />未提交草稿
+                <span className="badge-warning text-xs">{draftApps.length}</span>
+              </h3>
+              <div className="space-y-3">
+                {draftApps.map((a) => (
+                  <div key={a.id} className="p-4 rounded-xl bg-white border border-warning-200 hover:shadow-sm transition-all">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-zinc-900">{a.enterpriseName}</h4>
+                          <span className="badge-warning">草稿</span>
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-1 font-mono">{a.applicationNo}</p>
+                      </div>
+                      <button className="btn-primary text-xs !px-3 !py-1.5" onClick={() => handleContinueDraft(a.id)}>
+                        <Edit3 className="w-3.5 h-3.5" />继续填写
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-zinc-500">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />创建时间：{a.createTime}
+                      </span>
+                      {a.lastSaveTime && (
+                        <span className="flex items-center gap-1">
+                          <FileWarning className="w-3 h-3" />上次保存：{new Date(a.lastSaveTime).toLocaleString('zh-CN', { hour12: false })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="card p-5">
             <h3 className="font-semibold flex items-center gap-2 mb-4">
               <History className="w-5 h-5 text-primary-600" />历史申报记录
+              <span className="badge-info text-xs">{submittedApps.length}</span>
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -171,21 +221,27 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map((a) => (
-                    <tr key={a.id} className="border-b last:border-0 hover:bg-zinc-50">
-                      <td className="py-3 px-2 font-mono text-xs">{a.applicationNo}</td>
-                      <td className="py-3 px-2">{a.enterpriseName}</td>
-                      <td className="py-3 px-2 text-zinc-500">{a.createTime}</td>
-                      <td className="py-3 px-2">
-                        <span className={getAppStatusBadge(a.status)}>{getAppStatusText(a.status)}</span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <button className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1" onClick={() => handleViewApplication(a.id)}>
-                          <FileCheck className="w-3 h-3" />查看
-                        </button>
-                      </td>
+                  {submittedApps.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-zinc-400 text-sm">暂无已提交记录</td>
                     </tr>
-                  ))}
+                  ) : (
+                    submittedApps.map((a) => (
+                      <tr key={a.id} className="border-b last:border-0 hover:bg-zinc-50">
+                        <td className="py-3 px-2 font-mono text-xs">{a.applicationNo}</td>
+                        <td className="py-3 px-2">{a.enterpriseName}</td>
+                        <td className="py-3 px-2 text-zinc-500">{a.submitTime || a.createTime}</td>
+                        <td className="py-3 px-2">
+                          <span className={getAppStatusBadge(a.status)}>{getAppStatusText(a.status)}</span>
+                        </td>
+                        <td className="py-3 px-2">
+                          <button className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1" onClick={() => handleViewApplication(a.id)}>
+                            <FileCheck className="w-3 h-3" />查看进度
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

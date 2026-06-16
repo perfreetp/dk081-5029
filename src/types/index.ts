@@ -56,6 +56,17 @@ export interface MaterialItem {
   remark?: string;
 }
 
+export type TimelineNodeType = 'submit' | 'accept' | 'review' | 'complete' | 'return' | 'correct_submit';
+
+export interface TimelineNode {
+  id: string;
+  type: TimelineNodeType;
+  title: string;
+  description: string;
+  time: string;
+  operator?: string;
+}
+
 export interface ProcessStep {
   stage: ProcessStage;
   name: string;
@@ -67,6 +78,8 @@ export interface ProcessStep {
   handler?: string;
   returnReason?: string;
   correctItems?: string[];
+  timeline: TimelineNode[];
+  correctionSubmitted?: boolean;
 }
 
 export interface EnterpriseApplication {
@@ -89,6 +102,9 @@ export interface EnterpriseApplication {
   status: ProcessStatus;
   createTime: string;
   submitTime?: string;
+  isDraft: boolean;
+  lastSaveTime?: string;
+  currentStep?: number;
 }
 
 export interface Message {
