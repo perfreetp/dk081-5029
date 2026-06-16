@@ -83,6 +83,8 @@ export default function Application() {
 
   const [supervisorName, setSupervisorName] = useState(app?.supervisors[0]?.name || '');
   const [supervisorId, setSupervisorId] = useState(app?.supervisors[0]?.idNumber || '');
+  const [supervisorPhone, setSupervisorPhone] = useState(app?.supervisors[0]?.phone || '');
+  const [supervisorEmail, setSupervisorEmail] = useState(app?.supervisors[0]?.email || '');
 
   const [province, setProvince] = useState(app?.premises.province || '');
   const [city, setCity] = useState(app?.premises.city || '');
@@ -128,8 +130,8 @@ export default function Application() {
       name: supervisorName,
       idType: '居民身份证',
       idNumber: supervisorId,
-      phone: '',
-      email: '',
+      phone: supervisorPhone,
+      email: supervisorEmail,
       role: 'supervisor' as const,
     }] : [],
     premises: {
@@ -152,29 +154,32 @@ export default function Application() {
 
   const handleSubmit = () => {
     if (!app || !signed) return;
-    submitApplication(app.id);
-    const now = new Date().toLocaleString('zh-CN', { hour12: false });
-    addMessageOnce({
-      id: `msg_process_submit_${app.id}`,
-      type: 'process',
-      title: `${app.enterpriseName} 申请已提交`,
-      content: `您的企业开办申请已成功提交！各部门将并联受理，预计1-3个工作日完成营业执照办理。您可在进度中心查看各环节办理状态。`,
-      isRead: false,
-      createTime: now,
-      relatedApplicationId: app.id,
-      relatedStage: 'business_license',
-    });
-    addMessageOnce({
-      id: `msg_reminder_material_${app.id}`,
-      type: 'reminder',
-      title: '请及时补充完善材料',
-      content: '为确保审核顺利通过，请前往材料向导上传住所使用证明、《企业名称自主申报告知书》等材料，完整的材料有助于加快审核速度。',
-      isRead: false,
-      createTime: now,
-      relatedApplicationId: app.id,
-      relatedStage: 'business_license',
-    });
-    navigate('/progress');
+    saveDraft(app.id, collectDraftUpdates());
+    setTimeout(() => {
+      submitApplication(app.id);
+      const now = new Date().toLocaleString('zh-CN', { hour12: false });
+      addMessageOnce({
+        id: `msg_process_submit_${app.id}`,
+        type: 'process',
+        title: `${app.enterpriseName} 申请已提交`,
+        content: `您的企业开办申请已成功提交！各部门将并联受理，预计1-3个工作日完成营业执照办理。您可在进度中心查看各环节办理状态。`,
+        isRead: false,
+        createTime: now,
+        relatedApplicationId: app.id,
+        relatedStage: 'business_license',
+      });
+      addMessageOnce({
+        id: `msg_reminder_material_${app.id}`,
+        type: 'reminder',
+        title: '请及时补充完善材料',
+        content: '为确保审核顺利通过，请前往材料向导上传住所使用证明、《企业名称自主申报告知书》等材料，完整的材料有助于加快审核速度。',
+        isRead: false,
+        createTime: now,
+        relatedApplicationId: app.id,
+        relatedStage: 'business_license',
+      });
+      navigate('/progress');
+    }, 50);
   };
 
   useEffect(() => {
@@ -295,6 +300,8 @@ export default function Application() {
                     <div className="grid grid-cols-2 gap-3">
                       <input className="input" placeholder="姓名" value={s.name} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, name: e.target.value } : x))} />
                       <input className="input" placeholder="身份证号" value={s.idNumber} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, idNumber: e.target.value } : x))} />
+                      <input className="input" placeholder="手机号码" value={s.phone} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, phone: e.target.value } : x))} />
+                      <input className="input" placeholder="电子邮箱" value={s.email} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, email: e.target.value } : x))} />
                       <input className="input" placeholder="出资比例(%)" type="number" value={s.shareRatio} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, shareRatio: Number(e.target.value) } : x))} />
                       <input className="input" placeholder="认缴出资额(万)" type="number" value={s.subscribedCapital} onChange={(e) => setShareholders(shareholders.map((x) => x.id === s.id ? { ...x, subscribedCapital: Number(e.target.value) } : x))} />
                     </div>
@@ -306,6 +313,8 @@ export default function Application() {
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="label">监事姓名</label><input className="input" value={supervisorName} onChange={(e) => setSupervisorName(e.target.value)} /></div>
                   <div><label className="label">身份证号</label><input className="input" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} /></div>
+                  <div><label className="label">手机号码</label><input className="input" value={supervisorPhone} onChange={(e) => setSupervisorPhone(e.target.value)} /></div>
+                  <div><label className="label">电子邮箱</label><input className="input" value={supervisorEmail} onChange={(e) => setSupervisorEmail(e.target.value)} /></div>
                 </div>
               </div>
             </div>
